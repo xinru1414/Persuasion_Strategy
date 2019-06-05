@@ -4,10 +4,10 @@ Modeling what makes a request persuasive—eliciting the desired response from a
 
 ## Code Structure
 
-* ./src/AttnModel.py contains the codes for models.    
-* ./src/DataLoader.py contains the codes for data pre-processing and generate batches for training.     
-* ./src/MessageLoss.py contains the loss functions.     
-* ./src/train.py and test.py contain codes for training and testing.
+* ./src/AttnModel.py: semi-supervised model component.    
+* ./src/DataLoader.py: data loader for pre-processing and batching.     
+* ./src/MessageLoss.py: semi-supervised loss functions.     
+* ./src/train.py and test.py: main training and testing.
 
 ## Run
 
@@ -16,7 +16,7 @@ Run ```python ./src/test.py```  to test the model.
 
 ## Data
 
-The data comes from Kiva.org. If you are interested in using the annotated data for research, please contact us.
+If you are interested in using the annotated data for research, please contact us via emails.
 
 ## Cite
 If you use our tools for your work, please cite the following paper:
