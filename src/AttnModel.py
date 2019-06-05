@@ -28,7 +28,7 @@ class Request(nn.Module):
         self.w_context_vector = nn.Parameter(torch.randn([self.hidden_size, 1]).float())
         self.softmax = nn.Softmax(dim = 1)
 
-        self.word_linear1 = nn.Linear(self.hidden_size, self.hidden_size)
+        self.word_linear = nn.Linear(self.hidden_size, self.hidden_size)
         self.word_linear_out = nn.Linear(self.hidden_size, self.feature_size)
 
 
@@ -39,8 +39,7 @@ class Request(nn.Module):
         self.s_proj = nn.Linear(self.hidden_size, self.hidden_size)
         self.s_context_vector = nn.Parameter(torch.randn([self.hidden_size, 1]).float())
 
-        self.sent_linear1 = nn.Linear(self.hidden_size, self.output_size, bias = False)
-        #self.sent_linear_out = nn.Linear(self.hidden_size, self.output_size, bias = False)
+        self.sent_linear = nn.Linear(self.hidden_size, self.output_size, bias = False)
         
         
     def forward(self, x, sentence_num_, sentence_length):
@@ -63,15 +62,13 @@ class Request(nn.Module):
         x_out = x_out.mul(w_score)
         x_out = torch.sum(x_out, dim = 1)
 
-        x_out = F.relu(self.word_linear1(x_out))
+        x_out = F.relu(self.word_linear(x_out))
         x_out = self.word_linear_out(x_out)
 
         x_out_softmax = F.softmax(x_out, dim = 1)
         # batch_size*sentence_num * feature_size
-        
-        #print(x_out_softmax.shape, x_out.shape)
+
         x_out_softmax = x_out_softmax.view([batch_size, sentence_num, x_out_softmax.shape[1]])
-        #x_out_softmax = x_out.view([batch_size, sentence_num, x_out.shape[1]])
         
         x_out_message, _ = self.sent_GRU(x_out_softmax)
         
@@ -80,10 +77,8 @@ class Request(nn.Module):
         x_out_message = x_out_message.mul(s_score)
         x_out_message = torch.sum(x_out_message, dim = 1)
         
-        #x_out_message = torch.cat((x_out_message, extra), dim = 1)
-        x_out_message = self.sent_linear1(x_out_message)
-        #x_out_message = self.sent_linear_out(x_out_message)
-        #print(x_out_message.shape)
+        x_out_message = self.sent_linear(x_out_message)
+
         
         return x_out, x_out_message
         
