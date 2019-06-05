@@ -12,9 +12,9 @@ from torch.autograd import Variable
 from torch.utils.data import Dataset
 
 from Config import Config
-from dataLoader import Vocab, dataLoaderANN, dataLoaderUnann
+from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
 from AttnModel import Request
-from MyLoss import MessageLoss
+from MessageLoss import MessageLoss
 
 config = Config()
 
@@ -22,7 +22,6 @@ dataset_text = "./dataSetNew/persuasion_dataset_text.0720.public.csv"
 dataset_with_annotation = "./dataSetNew/annotation_dataset.0720.public.csv"
 
 vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = dataset_text)
-#vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = None)
 
 print(vocab.vocab_size)
 
@@ -46,7 +45,6 @@ def testModel():
         message_input = Variable(x.type(torch.LongTensor)).cuda()
         message_target = Variable(y.type(torch.FloatTensor)).cuda()
         sentence_label = Variable(l.type(torch.LongTensor)).cuda()
-     
         sentence_out, message_out = request(message_input, num, length)
 
         loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r = messageLoss(labeled_doc = message_out, target1 = message_target, labeled_sent = sentence_out, target2 = sentence_label, mode = 'test')
@@ -68,7 +66,7 @@ def evaluation():
         message_input = Variable(x.type(torch.LongTensor)).cuda()
         message_target = Variable(y.type(torch.FloatTensor)).cuda()
         sentence_label = Variable(l.type(torch.LongTensor)).cuda()
-     
+
         sentence_out, message_out = request(message_input, num, length)
 
         loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r = messageLoss(labeled_doc = message_out, target1 = message_target, labeled_sent = sentence_out, target2 = sentence_label, mode = 'dev')

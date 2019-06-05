@@ -13,9 +13,9 @@ from torch.utils.data import Dataset
 from torch.optim.lr_scheduler import *
 
 from Config import Config
-from dataLoader import Vocab, dataLoaderANN, dataLoaderUnann
+from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
 from AttnModel import Request
-from MyLoss import MessageLoss
+from MessageLoss import MessageLoss
 
 config = Config()
 
@@ -24,10 +24,7 @@ dataset_with_annotation = "./dataSetNew/annotation_dataset.0720.public.csv"
 
 
 vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = dataset_text)
-#vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = None)
 
-#with open('./data/vocab_new.pkl', 'rb') as f:
-#    vocab = pickle.load(f)
 print(vocab.vocab_size)
 
 
@@ -38,10 +35,8 @@ dataSet4 = dataLoaderUnann(vocab, dataset_text)
 
 loaderTrainAnn = Data.DataLoader(dataset = dataSet, batch_size = 128, shuffle = True, num_workers = 0)
 loaderTrainUnann = Data.DataLoader(dataset = dataSet4, batch_size = 128, shuffle = True, num_workers = 0)
-#loaderTest = Data.DataLoader(dataset = dataSet2, batch_size = 500, shuffle = False, num_workers = 1)
 loaderDev = Data.DataLoader(dataset = dataSet3, batch_size = 200, shuffle = False, num_workers = 1)
 
-#request = Request(config, vocab_size = vocab.vocab_size, pretrained_embedding= vocab.embed)
 request = Request(config, vocab_size = vocab.vocab_size)
 
 request.cuda()
@@ -92,7 +87,7 @@ def evaluation():
         message_input = Variable(x.type(torch.LongTensor)).cuda()
         message_target = Variable(y.type(torch.FloatTensor)).cuda()
         sentence_label = Variable(l.type(torch.LongTensor)).cuda()
-     
+
         sentence_out, message_out = request(message_input, num, length)
 
         loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r = messageLoss(labeled_doc = message_out, target1 = message_target, labeled_sent = sentence_out, target2 = sentence_label, mode = 'dev')
@@ -107,7 +102,6 @@ def evaluation():
     print("...")
     print("Dev: total_loss: {0}, score_rmse_loss: {1}, cross_loss: {2}".format(loss, rmse, sent_loss))
     print("   : corrext: {0}, count : {1}, acc: {2}".format(correct_, count_, correct_/count_))
-    #print("   : acc: {0}, P: {1}, R: {2}, F1: {3}".format(correct/count, p, r, f1))
     print("...")
 
     return correct_/count_, loss, f1
@@ -154,11 +148,8 @@ def trainStep(without_unann = False):
 
             acc, loss, f1 = evaluation()
 
-            #scheduler.step()
-            #if loss < min_loss:
             if acc >= max_acc or loss <= min_loss:
                 if acc >= max_acc: 
-                #and loss <= min_loss:
                     print('update!!!')
                     
                     flag = 1
@@ -175,7 +166,6 @@ def trainStep(without_unann = False):
                 break
             else:
                 flag += 1
-            #scheduler.step()
             
 
         request.train()
@@ -188,7 +178,6 @@ def trainStep(without_unann = False):
             ann_sentence_out, ann_message_out = request(ann_message_input, ann_data[ann_num][3], ann_data[ann_num][4])
 
             ann_num = ann_num - 1
-        #print(len(unann_data), unann_num)
         else:
             ann_message_input = Variable(ann_data[ann_num][0].type(torch.LongTensor)).cuda()
             ann_message_target = Variable(ann_data[ann_num][1].type(torch.FloatTensor)).cuda()
@@ -225,7 +214,6 @@ def trainStep(without_unann = False):
 
         optimizer.zero_grad()
         loss.backward()
-        #labeled_sent_loss.backward()
         optimizer.step()
 
         print("Train Step {0}: loss: {1}, labeled_sent_loss: {2}, doc_loss: {3}".format(step, loss, labeled_sent_loss, loss - 10 * labeled_sent_loss))
