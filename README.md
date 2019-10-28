@@ -16,8 +16,6 @@ Run ```python ./src/test.py```  to test the model.
 
 ## Data
 
-If you are interested in using the annotated data for research, please contact us via emails. 
-
 The mapping from label to persuasive strategies:
 
 ``` {'Other':0, 'Concreteness':1, 'Commitment':2, 'Emotional':3, 'Identity':4, 'Impact':5, 'Scarcity':6} ```
