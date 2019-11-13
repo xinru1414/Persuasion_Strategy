@@ -1,16 +1,9 @@
-import math
-import os
-import pickle
 
-import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.utils.data as Data
-from torch import optim
 from torch.autograd import Variable
-from torch.utils.data import Dataset
 from torch.optim.lr_scheduler import *
+from sklearn.metrics import cohen_kappa_score
 
 from Config import Config
 from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
@@ -19,8 +12,8 @@ from MessageLoss import MessageLoss
 
 config = Config()
 
-dataset_text = "./dataSetNew/persuasion_dataset_text.0720.public.csv"
-dataset_with_annotation = "./dataSetNew/annotation_dataset.0720.public.csv"
+dataset_text = "../data/preprocessed/persuasion_dataset_text.csv"
+dataset_with_annotation = "../data/preprocessed/annotation_dataset.csv"
 
 
 vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = dataset_text)
@@ -28,24 +21,24 @@ vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = 
 print(vocab.vocab_size)
 
 
-dataSet = dataLoaderANN(vocab, dataset_with_annotation)
-dataSet2 = dataLoaderANN(vocab, dataset_with_annotation, mode = 'test')
-dataSet3 = dataLoaderANN(vocab, dataset_with_annotation, mode = 'dev')
+dataSet = dataLoaderANN(vocab, dataset_with_annotation, mode='train')
+dataSet2 = dataLoaderANN(vocab, dataset_with_annotation, mode='test')
+dataSet3 = dataLoaderANN(vocab, dataset_with_annotation, mode='dev')
 dataSet4 = dataLoaderUnann(vocab, dataset_text)
 
-loaderTrainAnn = Data.DataLoader(dataset = dataSet, batch_size = 128, shuffle = True, num_workers = 0)
-loaderTrainUnann = Data.DataLoader(dataset = dataSet4, batch_size = 128, shuffle = True, num_workers = 0)
-loaderDev = Data.DataLoader(dataset = dataSet3, batch_size = 200, shuffle = False, num_workers = 1)
+loaderTrainAnn = Data.DataLoader(dataset=dataSet, batch_size=4, shuffle=True, num_workers=0)
+loaderTrainUnann = Data.DataLoader(dataset=dataSet4, batch_size=4, shuffle=True, num_workers=0)
+loaderDev = Data.DataLoader(dataset=dataSet3, batch_size=2, shuffle=False, num_workers=1)
 
 request = Request(config, vocab_size = vocab.vocab_size)
 
 request.cuda()
 
-messageLoss = MessageLoss(w2 = 10)
+messageLoss = MessageLoss(w2=10)
 messageLoss.cuda()
 
 learning_rate = 5e-5
-optimizer = torch.optim.Adam(params = request.parameters(), lr = learning_rate)
+optimizer = torch.optim.Adam(params=request.parameters(), lr=learning_rate)
 scheduler = ExponentialLR(optimizer, gamma=0.9)
 
 
@@ -63,18 +56,27 @@ def testModel():
      
         sentence_out, message_out = request(message_input, num, length)
 
-        loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r = messageLoss(labeled_doc = message_out, target1 = message_target, labeled_sent = sentence_out, target2 = sentence_label, mode = 'test')
+        loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr \
+            = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='test')
 
     if p + r != 0:
         f1 = (2*p*r)/(p+r)
     else:
         f1 = 0
 
+    if dp + dr != 0:
+        df1 = (2*dp*dr)/(dp+dr)
+    else:
+        df1 = 0
+
     print("...")
     print("Test: total_loss: {0}, score_rmse_loss: {1}, cross_loss: {2}".format(loss, rmse, sent_loss))
-    print("   : corrext: {0}, count : {1}, acc: {2}".format(correct, count, correct/count))
+    print("   : correct: {0}, count : {1}, acc: {2}".format(correct, count, correct/count))
     print("   : acc: {0}, P: {1}, R: {2}, F1: {3}".format(correct/count, p, r, f1))
+    print("   : dcorrect: {0}, dcount : {1}, dacc: {2}".format(d_correct, d_count, d_correct/d_count))
+    print("   : dacc: {0}, dP: {1}, dR: {2}, dF1: {3}".format(d_correct/d_count, dp, dr, df1))
     print("...")
+
 
 def evaluation():
     global request
@@ -82,6 +84,8 @@ def evaluation():
     
     correct_ = 0
     count_ = 0
+    d_correct_ = 0
+    d_count_ = 0
     
     for step, (x, y, l, num, length) in enumerate(loaderDev):
         message_input = Variable(x.type(torch.LongTensor)).cuda()
@@ -90,18 +94,29 @@ def evaluation():
 
         sentence_out, message_out = request(message_input, num, length)
 
-        loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r = messageLoss(labeled_doc = message_out, target1 = message_target, labeled_sent = sentence_out, target2 = sentence_label, mode = 'dev')
+        loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr, x, y \
+            = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='dev')
         correct_ += correct
         count_ += count
+
+        d_correct_ += d_correct
+        d_count_ += d_count
 
     if p + r != 0:
         f1 = (2*p*r)/(p+r)
     else:
         f1 = 0
 
+    if dp + dr != 0:
+        df1 = (2*dp*dr)/(dp+dr)
+    else:
+        df1 = 0
+
     print("...")
     print("Dev: total_loss: {0}, score_rmse_loss: {1}, cross_loss: {2}".format(loss, rmse, sent_loss))
     print("   : corrext: {0}, count : {1}, acc: {2}".format(correct_, count_, correct_/count_))
+    print("   : dcorrect: {0}, dcount : {1}, dacc: {2}".format(d_correct_, d_count_, d_correct_/d_count_))
+    print("   : dacc: {0}, dP: {1}, dR: {2}, dF1: {3}".format(d_correct_/d_count_, dp, dr, df1))
     print("...")
 
     return correct_/count_, loss, f1
@@ -117,6 +132,7 @@ def getAnnTrainBatches():
 
     return ann_num, ann_data
 
+
 def getUnannTrainBatches():
     unann_data = []
     unann_num = -1
@@ -127,9 +143,8 @@ def getUnannTrainBatches():
 
     return unann_num, unann_data
 
+
 def trainStep(without_unann = False):
-    #global learning_rate
-    #global optimizer
     global request
 
     max_acc = 0
@@ -153,7 +168,7 @@ def trainStep(without_unann = False):
                     print('update!!!')
                     
                     flag = 1
-                    torch.save(request, './model/model_attn_1.pkl')
+                    torch.save(request, '../model/model_attn_1.pkl')
                 max_acc = max(acc, max_acc)
                 min_loss = min(loss, min_loss)
                 
@@ -204,13 +219,13 @@ def trainStep(without_unann = False):
 
 
         if without_unann:
-            loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r = messageLoss(labeled_doc = ann_message_out, target1 = ann_message_target, labeled_sent = ann_sentence_out, target2 = ann_sentence_label, w1 = 0, unlabeled_doc = None, target3 = None, mode = 'train')
+            loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr, x, y, \
+                = messageLoss(labeled_doc=ann_message_out, target1=ann_message_target, labeled_sent=ann_sentence_out, target2=ann_sentence_label, w1=0, unlabeled_doc=None, target3=None, mode='train')
             
         else:
-            loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r = messageLoss(labeled_doc = ann_message_out, target1 = ann_message_target, labeled_sent = ann_sentence_out, target2 = ann_sentence_label, w1 = w1, unlabeled_doc = unann_message_out, target3 = unann_message_target, mode = 'train')
+            loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr, x, y, \
+                = messageLoss(labeled_doc=ann_message_out, target1=ann_message_target, labeled_sent=ann_sentence_out, target2=ann_sentence_label, w1=w1, unlabeled_doc=unann_message_out, target3=unann_message_target, mode='train')
             
-
-
 
         optimizer.zero_grad()
         loss.backward()
@@ -218,6 +233,8 @@ def trainStep(without_unann = False):
 
         print("Train Step {0}: loss: {1}, labeled_sent_loss: {2}, doc_loss: {3}".format(step, loss, labeled_sent_loss, loss - 10 * labeled_sent_loss))
 
-trainStep(False)
+
+if __name__ == '__main__':
+    trainStep(False)
 
 
