@@ -5,15 +5,15 @@ from torch.autograd import Variable
 from torch.optim.lr_scheduler import *
 from sklearn.metrics import cohen_kappa_score
 
-from Config import Config
+from Config import ModelConfig, dataset_text, dataset_with_annotation
 from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
 from AttnModel import Request
 from MessageLoss import MessageLoss
 
-config = Config()
+config = ModelConfig()
 
-dataset_text = "../data/preprocessed/persuasion_dataset_text.csv"
-dataset_with_annotation = "../data/preprocessed/annotation_dataset.csv"
+dataset_text = dataset_text
+dataset_with_annotation = dataset_with_annotation
 
 
 vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = dataset_text)
@@ -37,45 +37,13 @@ request.cuda()
 messageLoss = MessageLoss(w2=10)
 messageLoss.cuda()
 
-learning_rate = 5e-5
+learning_rate = ModelConfig().learning_rate
 optimizer = torch.optim.Adam(params=request.parameters(), lr=learning_rate)
 scheduler = ExponentialLR(optimizer, gamma=0.9)
 
 
 for name, param in request.named_parameters():
     print(name, param.size(), param.requires_grad)
-    
-
-def testModel():
-    global request
-    request.eval()
-    for step, (x, y, l, num, length) in enumerate(loaderTest):
-        message_input = Variable(x.type(torch.LongTensor)).cuda()
-        message_target = Variable(y.type(torch.FloatTensor)).cuda()
-        sentence_label = Variable(l.type(torch.LongTensor)).cuda()
-     
-        sentence_out, message_out = request(message_input, num, length)
-
-        loss, rmse, sent_loss, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr \
-            = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='test')
-
-    if p + r != 0:
-        f1 = (2*p*r)/(p+r)
-    else:
-        f1 = 0
-
-    if dp + dr != 0:
-        df1 = (2*dp*dr)/(dp+dr)
-    else:
-        df1 = 0
-
-    print("...")
-    print("Test: total_loss: {0}, score_rmse_loss: {1}, cross_loss: {2}".format(loss, rmse, sent_loss))
-    print("   : correct: {0}, count : {1}, acc: {2}".format(correct, count, correct/count))
-    print("   : acc: {0}, P: {1}, R: {2}, F1: {3}".format(correct/count, p, r, f1))
-    print("   : dcorrect: {0}, dcount : {1}, dacc: {2}".format(d_correct, d_count, d_correct/d_count))
-    print("   : dacc: {0}, dP: {1}, dR: {2}, dF1: {3}".format(d_correct/d_count, dp, dr, df1))
-    print("...")
 
 
 def evaluation():

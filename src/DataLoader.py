@@ -21,6 +21,12 @@ from nltk.tokenize import regexp_tokenize, sent_tokenize
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from Config import ConversationConfig
+
+SENT_LABEL_SET = ConversationConfig.sent_label_set
+CONV_PAD_LABEL = ConversationConfig.conv_pad_label
+MAX_SENT_NUM = ConversationConfig.sent_num
+MAX_SENT_NUM_PLUS_ONE = ConversationConfig.sent_num + 1
 
 def transform(dd, annotated=True):
     dd = re.sub(r"Let\'s", " Let us ", dd)
@@ -78,7 +84,7 @@ class Vocab(object):
             np.random.shuffle(raw_data)
 
             for i in tqdm(range(0, raw_data.shape[0])):
-                for j in range(1, 45):
+                for j in range(1, MAX_SENT_NUM_PLUS_ONE):
                     if raw_data[i][2 * j] is not None:
                         results = re.compile(r'www.[a-zA-Z0-9.?/&=:#%_-]*', re.S)
                         raw_data[i][2 * j] = np.nan_to_num(raw_data[i][2 * j])
@@ -163,8 +169,6 @@ class Vocab(object):
 
 
 class dataLoaderANN(Dataset):
-    #NO_LABEL = 9999
-
     def __init__(self, vocab, dataset_with_annotation, mode='train', idx=0):
         self.vocab = vocab
 
@@ -184,9 +188,8 @@ class dataLoaderANN(Dataset):
                   """
 
         self.english_punctuations = []
-        self.label_set = ['direct-rejection', 'self-pity', 'deflect-responsibility', 'attack-credibility', 'organization-inquiry', 'personal-choice', 'delay-tactic', 'hesitance', 'nitpicking', 'not-a-strategy']
-        #self.label_set = ['ERPos+', 'ERPos-', 'ERNeg+', 'ERNeg-',
-                          #'EEPos+', 'EEPos-', 'EENeg+', 'EENeg-']
+        self.label_set = SENT_LABEL_SET
+
         #assert len(self.label_set) < self.NO_LABEL, 'NO_LABEL must be raised!'
 
         self.message_id_and_score = {}
@@ -243,7 +246,7 @@ class dataLoaderANN(Dataset):
 
         message_vec = torch.LongTensor(self.message2id(message))
 
-        labels = np.array([11] * self.max_sentence_num)
+        labels = np.array([CONV_PAD_LABEL] * self.max_sentence_num)
 
         for i in range(0, len(message_sentence_label)):
             labels[i] = message_sentence_label[i]
@@ -274,7 +277,7 @@ class dataLoaderANN(Dataset):
         for i in range(0, len(self.label_set)):
             if s == self.label_set[i]:
                 return i
-        return 10
+        return CONV_PAD_LABEL
 
     def lookup_score(self, id):
         score = self.message_id_and_score[id]
@@ -294,7 +297,7 @@ class dataLoaderANN(Dataset):
             sentence_temp = []
             sentence_label = []
             sentence_length_temp = []
-            for j in range(1, 45):
+            for j in range(1, MAX_SENT_NUM_PLUS_ONE):
                 if raw_data[i][2 * j] is not None:
                     results = re.compile(r'www.[a-zA-Z0-9.?/&=:#%_-]*', re.S)
                     raw_data[i][2 * j] = np.nan_to_num(raw_data[i][2 * j])
@@ -317,9 +320,9 @@ class dataLoaderANN(Dataset):
 
                     if self.max_len < l:
                         self.max_len = l
-                    # print(f'sent {temp}')
-                    # print(f'label {raw_data[i][2 * j + 1]}')
-                    # print(f'label number {self.lookup_label_id(raw_data[i][2 * j + 1])}')
+                    print(f'sent {temp}')
+                    print(f'label {raw_data[i][2 * j + 1]}')
+                    print(f'label number {self.lookup_label_id(raw_data[i][2 * j + 1])}')
                     sentence_label.append(self.lookup_label_id(raw_data[i][2 * j + 1]))
 
             l = len(sentence_temp)
@@ -341,7 +344,7 @@ class dataLoaderUnann(Dataset):
 
         self.max_len = 900
 
-        self.max_sentence_num = 45
+        self.max_sentence_num = MAX_SENT_NUM
 
         self.english_punctuations = []
 
@@ -384,7 +387,7 @@ class dataLoaderUnann(Dataset):
 
         message_vec = self.message2id(message)
 
-        labels = np.array([11] * self.max_sentence_num)
+        labels = np.array([CONV_PAD_LABEL] * self.max_sentence_num)
 
         lengths = np.array([0] * self.max_sentence_num)
 
@@ -452,8 +455,8 @@ class dataLoaderUnann(Dataset):
                     l = len(sentence_temp)
 
                     self.message_length.append(l)
-                    self.sentence_length.append(sentence_length_temp[:45])
-                    self.message.append(sentence_temp[:45])
+                    self.sentence_length.append(sentence_length_temp[:MAX_SENT_NUM])
+                    self.message.append(sentence_temp[:MAX_SENT_NUM])
 
             except:
                 pass

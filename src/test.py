@@ -2,16 +2,16 @@
 import torch
 import torch.utils.data as Data
 from torch.autograd import Variable
-from Config import Config
+from Config import ModelConfig, dataset_text, dataset_with_annotation
 from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
 from MessageLoss import MessageLoss
 from nltk import agreement
 import numpy as np
 
-config = Config()
+config = ModelConfig()
 
-dataset_text = "../data/preprocessed/persuasion_dataset_text.csv"
-dataset_with_annotation = "../data/preprocessed/annotation_dataset.csv"
+dataset_text = dataset_text
+dataset_with_annotation = dataset_with_annotation
 
 
 vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = dataset_text)

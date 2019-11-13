@@ -3,6 +3,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from Config import ConversationConfig, zeroed_class_dict
+CONV_LABEL_NUM = ConversationConfig.conv_label_num
+CONV_PAD_LABEL = ConversationConfig.conv_pad_label
+SENT_LABEL_NUM = ConversationConfig.sent_label_num
+
+
+def p_r_f1(dict_num):
+    count = 0
+    correct = 0
+    predict_dict = zeroed_class_dict(dict_num)
+    correct_dict = zeroed_class_dict(dict_num)
+    total_dict = zeroed_class_dict(dict_num)
+    p = 0
+    r = 0
+    return count, correct, predict_dict, correct_dict, total_dict, p, r
+
 
 class MessageLoss(nn.Module):
     def __init__(self, w1=10, w2=10):
@@ -14,13 +30,7 @@ class MessageLoss(nn.Module):
         if w1 is not None:
             self.w1 = w1
 
-        d_count = 0
-        d_correct = 0
-        dpredict_dic = {0:0, 1:0}
-        dcorrect_dic = {0:0, 1:0}
-        dcorrect_total = {0:0, 1:0}
-        dp = 0
-        dr = 0
+        d_count, d_correct, dpredict_dic, dcorrect_dic, dcorrect_total, dp, dr = p_r_f1(CONV_LABEL_NUM)
 
         labeled_doc_loss = 0
         if target1 is not None:
@@ -65,16 +75,9 @@ class MessageLoss(nn.Module):
                 unlabeled_doc_loss = unlabeled_doc_loss.cpu().detach().numpy()
             
         labeled_sent_loss = 0
-        count = 0
-        correct = 0
-        predict_dict = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0}
-        correct_dict = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0}
-        correct_total = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0}
         predicted = []
         ground_truth = []
-
-        p = 0
-        r = 0
+        count, correct, predict_dict, correct_dict, correct_total, p, r = p_r_f1(SENT_LABEL_NUM)
         
         if target2 is not None:
             target2 = target2.view(target2.shape[0] * target2.shape[1])
@@ -82,7 +85,7 @@ class MessageLoss(nn.Module):
             labeled_sent2 = torch.argmax(F.softmax(labeled_sent, dim=1), dim=1)
 
             for i in range(0, target2.shape[0]):
-                if target2[i] == 10:
+                if target2[i] == CONV_PAD_LABEL:
                     continue
                 else:
                     predicted.append(labeled_sent2[i].cpu().detach().numpy())
@@ -126,9 +129,9 @@ class MessageLoss(nn.Module):
 
         if mode == 'train':
             loss = self.w1 * (labeled_doc_loss + unlabeled_doc_loss) + self.w2 * labeled_sent_loss
-            return loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p/10, r/10, \
-                   dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp/3, dr/3, predicted, ground_truth
+            return loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p/SENT_LABEL_NUM, r/SENT_LABEL_NUM, \
+                   dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp/CONV_LABEL_NUM, dr/CONV_LABEL_NUM, predicted, ground_truth
         else:
             loss = labeled_doc_loss + self.w2 * labeled_sent_loss.cpu().detach().numpy()
-            return loss, labeled_doc_loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p/10, r/10,\
-                   dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp/3, dr/3, predicted, ground_truth
+            return loss, labeled_doc_loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p/SENT_LABEL_NUM, r/SENT_LABEL_NUM,\
+                   dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp/CONV_LABEL_NUM, dr/CONV_LABEL_NUM, predicted, ground_truth
