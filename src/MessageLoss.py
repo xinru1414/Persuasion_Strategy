@@ -100,31 +100,6 @@ class MessageLoss(nn.Module):
 
             if count != 0:
                 labeled_sent_loss = labeled_sent_loss/count
-        assert(len(predicted) == len(ground_truth)), 'predicted and ground truth should be the same length'
-
-        if mode != 'train':
-            for (u, v) in correct_dict.items():
-                if predict_dict[u] == 0:
-                    temp = 0
-                else:
-                    temp = v/predict_dict[u]
-                if correct_total[u] != 0:
-                    temp2 = v/correct_total[u]
-                else:
-                    temp2 = 0
-                p += temp
-                r += temp2
-            for (u,v) in dcorrect_dic.items():
-                if dpredict_dic[u] == 0:
-                    temp = 0
-                else:
-                    temp = v/dpredict_dic[u]
-                if dcorrect_total[u] != 0:
-                    temp2 = v/dcorrect_total[u]
-                else:
-                    temp2 = 0
-                dp += temp
-                dr += temp2
 
         loss = self.w1 * (labeled_doc_loss + unlabeled_doc_loss) + self.w2 * labeled_sent_loss
         return loss, labeled_sent_loss

@@ -1,4 +1,3 @@
-
 import torch
 import torch.utils.data as Data
 from torch.autograd import Variable
@@ -8,18 +7,16 @@ from MessageLoss import MessageLoss
 from nltk import agreement
 import numpy as np
 
-from PRF import PRF
+from PRF import prf, prf_doc, prf_sent
 
 config = ModelConfig()
 
 dataset_text = dataset_text
 dataset_with_annotation = dataset_with_annotation
 
-
-vocab = Vocab(dataset_with_annotation = dataset_with_annotation, dataset_text = dataset_text)
+vocab = Vocab(dataset_with_annotation=dataset_with_annotation, dataset_text=dataset_text)
 
 print(vocab.vocab_size)
-
 
 dataSet2 = dataLoaderANN(vocab, dataset_with_annotation, mode='test')
 dataSet3 = dataLoaderANN(vocab, dataset_with_annotation, mode='dev')
@@ -30,11 +27,9 @@ loaderDev = Data.DataLoader(dataset=dataSet3, batch_size=8, shuffle=False, num_w
 request = torch.load('../model/model_attn_1.pkl')
 request.cuda()
 
-messageLoss = MessageLoss(w2 = 10)
+messageLoss = MessageLoss(w2=10)
 messageLoss.cuda()
 
-prf = PRF(w2=10)
-prf.cuda()
 
 
 def testModel():
@@ -47,12 +42,13 @@ def testModel():
         sentence_out, message_out = request(message_input, num, length)
 
         loss, labeled_sent_loss \
-            = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='test')
-        _, _, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr, x, y, \
-            = prf(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='test')
+            = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out,
+                          target2=sentence_label, mode='test')
+        correct, count, p, r = prf_sent(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
+        d_correct, d_count, dp, dr = prf_doc(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
 
     if p + r != 0:
-        f1 = (2*p*r)/(p+r)
+        f1 = (2 * p * r) / (p + r)
     else:
         f1 = 0
 
@@ -69,12 +65,14 @@ def testModel():
     ratingtask = agreement.AnnotationTask(data=taskdata)
     alpha = ratingtask.kappa()
 
-
     print("...")
     print(f"Test: total loss: {loss}, labeled sent loss: {labeled_sent_loss}")
-    print(f"    : sent -- correct: {correct}, count : {count}, acc: {correct/count}, p: {p}, r: {r}, f1: {f1}, kappa: {alpha}")
-    print(f"    : conv -- correct: {d_correct}, count : {d_count}, dacc: {d_correct/d_count}, p: {dp}, r: {dr}, f1: {df1}")
+    print(
+        f"    : sent -- correct: {correct}, count : {count}, acc: {correct / count}, p: {p}, r: {r}, f1: {f1}, kappa: {alpha}")
+    print(
+        f"    : conv -- correct: {d_correct}, count : {d_count}, dacc: {d_correct / d_count}, p: {dp}, r: {dr}, f1: {df1}")
     print("...")
+
 
 if __name__ == '__main__':
     testModel()

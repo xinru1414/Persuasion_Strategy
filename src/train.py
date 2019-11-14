@@ -8,7 +8,7 @@ from Config import ModelConfig, dataset_text, dataset_with_annotation
 from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
 from AttnModel import Request
 from MessageLoss import MessageLoss
-from PRF import PRF
+from PRF import prf_sent, prf_doc
 
 config = ModelConfig()
 
@@ -43,9 +43,6 @@ request.cuda()
 messageLoss = MessageLoss(w2=10)
 messageLoss.cuda()
 
-prf = PRF(w2=10)
-prf.cuda()
-
 learning_rate = ModelConfig().learning_rate
 optimizer = torch.optim.Adam(params=request.parameters(), lr=learning_rate)
 scheduler = ExponentialLR(optimizer, gamma=0.9)
@@ -55,14 +52,17 @@ for name, param in request.named_parameters():
     print(name, param.size(), param.requires_grad)
 
 
+def p_r_to_f1(p, r):
+    return 0 if p + r == 0 else (2 * p * r) / (p + r)
+
+
 def evaluation():
     global request
     request.eval()
     
     correct_ = 0
     count_ = 0
-    d_correct_ = 0
-    d_count_ = 0
+    loss_ = 0
     
     for step, (x, y, l, num, length) in enumerate(loaderDev):
         message_input = Variable(x.type(torch.LongTensor)).cuda()
@@ -73,31 +73,22 @@ def evaluation():
 
         loss, label_sent_loss \
             = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='dev')
-        _, _, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr, x, y \
-            = prf(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='dev')
+        correct, count, p, r = prf_sent(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
+        d_correct, d_count, dp, dr = prf_doc(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
         correct_ += correct
         count_ += count
+        loss_ += loss
 
-        d_correct_ += d_correct
-        d_count_ += d_count
+        f1 = p_r_to_f1(p, r)
+        df1 = p_r_to_f1(dp, dr)
 
-    if p + r != 0:
-        f1 = (2*p*r)/(p+r)
-    else:
-        f1 = 0
+        print("...")
+        print(f"Dev: total_loss: {loss}, labeled_sent_loss: {label_sent_loss}")
+        print(f"   : sent -- correct: {correct}, count : {count}, acc: {correct/count}, p: {p}, r: {r}, f1: {f1}")
+        print(f"   : conv -- correct: {d_correct}, dcount : {d_count}, acc: {d_correct/d_count}, p: {dp}, r: {dr}, f1: {df1}")
+        print("...")
 
-    if dp + dr != 0:
-        df1 = (2*dp*dr)/(dp+dr)
-    else:
-        df1 = 0
-
-    print("...")
-    print(f"Dev: total_loss: {loss}, labeled_sent_loss: {label_sent_loss}")
-    print(f"   : sent -- correct: {correct_}, count : {count_}, acc: {correct_/count_}, p: {p}, r: {r}, f1: {f1}")
-    print(f"   : conv -- correct: {d_correct_}, dcount : {d_count_}, acc: {d_correct_/d_count_}, p: {dp}, r: {dr}, f1: {df1}")
-    print("...")
-
-    return correct_/count_, loss, f1
+    return correct_/count_, loss_
 
 
 def getAnnTrainBatches():
@@ -139,7 +130,7 @@ def trainStep(without_unann=False):
         if ann_num == -1:
             ann_num, ann_data = getAnnTrainBatches()
 
-            acc, loss, f1 = evaluation()
+            acc, loss = evaluation()
 
             if acc >= max_acc or loss <= min_loss:
                 if acc >= max_acc: 
@@ -198,14 +189,9 @@ def trainStep(without_unann=False):
         if without_unann:
             loss, labeled_sent_loss \
                 = messageLoss(labeled_doc=ann_message_out, target1=ann_message_target, labeled_sent=ann_sentence_out, target2=ann_sentence_label, w1=0, unlabeled_doc=None, target3=None, mode='train')
-            _, _, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr, x, y, \
-                = prf(labeled_doc=ann_message_out, target1=ann_message_target, labeled_sent=ann_sentence_out, target2=ann_sentence_label, w1=0, unlabeled_doc=None, target3=None, mode='train')
-            
         else:
             loss, labeled_sent_loss \
                 = messageLoss(labeled_doc=ann_message_out, target1=ann_message_target, labeled_sent=ann_sentence_out, target2=ann_sentence_label, w1=10, unlabeled_doc=unann_message_out, target3=unann_message_target, mode='train')
-            _, _, correct_dict, predict_dict, correct_total, correct, count, p, r, dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp, dr, x, y, \
-                = prf(labeled_doc=ann_message_out, target1=ann_message_target, labeled_sent=ann_sentence_out, target2=ann_sentence_label, w1=10, unlabeled_doc=unann_message_out, target3=unann_message_target, mode='train')
             
 
         optimizer.zero_grad()
