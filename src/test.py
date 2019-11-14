@@ -50,18 +50,18 @@ def testModel():
         sent_results += prf(predictions=sentence_out, targets=sentence_label, num_labels=ConversationConfig.sent_label_num)
         doc_results += prf(predictions=message_out, targets=message_target, num_labels=ConversationConfig.conv_label_num)
 
-        print(f'x, y {x, y}')
-        x = np.stack(x, axis=0).tolist()
-        y = np.stack(y, axis=0).tolist()
-        print(f'new x y {x, y}')
-        taskdata = [[0, str(i), str(x[i])] for i in range(0, len(x))] + [[1, str(i), str(y[i])] for i in range(0, len(y))]
-        ratingtask = agreement.AnnotationTask(data=taskdata)
-        alpha = ratingtask.kappa()
+        # print(f'x, y {x, y}')
+        # x = np.stack(x, axis=0).tolist()
+        # y = np.stack(y, axis=0).tolist()
+        # print(f'new x y {x, y}')
+        # taskdata = [[0, str(i), str(x[i])] for i in range(0, len(x))] + [[1, str(i), str(y[i])] for i in range(0, len(y))]
+        # ratingtask = agreement.AnnotationTask(data=taskdata)
+        # alpha = ratingtask.kappa()
 
     print("...")
     print(f"Test: total loss: {loss}, labeled sent loss: {labeled_sent_loss}")
-    print(f"   : sent -- count : {sent_results.count}, acc: {sent_results.accuracy}") #, p: {p}, r: {r}, f1: {f1}")
-    print(f"   : conv -- count : {doc_results.count}, acc: {doc_results.accuracy}") #, p: {dp}, r: {dr}, f1: {df1}")
+    for name, result in {'sent': sent_results, 'conv': doc_results}.items():
+        print(f"   : {name} -- count : {result.count}, acc: {result.accuracy}, p: {result.precision}, r: {result.recall}, f1: {result.f1}")
     print("...")
 
 

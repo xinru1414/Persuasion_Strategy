@@ -77,8 +77,8 @@ def evaluation():
 
     print("...")
     print(f"Dev: total_loss: {loss}, labeled_sent_loss: {label_sent_loss}")
-    print(f"   : sent -- count : {sent_results.count}, acc: {sent_results.accuracy}") #, p: {p}, r: {r}, f1: {f1}")
-    print(f"   : conv -- count : {doc_results.count}, acc: {doc_results.accuracy}") #, p: {dp}, r: {dr}, f1: {df1}")
+    for name, result in {'sent': sent_results, 'conv': doc_results}.items():
+        print(f"   : {name} -- count : {result.count}, acc: {result.accuracy}, p: {result.precision}, r: {result.recall}, f1: {result.f1}")
     print("...")
 
     return sent_results.accuracy, loss

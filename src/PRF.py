@@ -2,7 +2,7 @@ from typing import NamedTuple
 
 import torch
 import torch.nn.functional as F
-from Config import ConversationConfig, zeroed_class_dict
+from Config import ConversationConfig
 
 CONV_LABEL_NUM = ConversationConfig.conv_label_num
 CONV_PAD_LABEL = ConversationConfig.conv_pad_label
@@ -17,14 +17,14 @@ class PRResults:
 
     @classmethod
     def with_num_of_labels(cls, num_labels):
-        return cls(zeroed_class_dict(num_labels), zeroed_class_dict(num_labels), zeroed_class_dict(num_labels))
+        return cls(*(list(range(num_labels)) for _ in range(3)))
 
     def __add__(self, other):
         assert isinstance(other, PRResults)
         assert self.num_labels == other.num_labels, 'Number of labels must match between results if they are being added.'
-        new_target = {i: self._target[i] + other._target[i] for i in range(self.num_labels)}
-        new_prediction = {i: self._prediction[i] + other._prediction[i] for i in range(self.num_labels)}
-        new_correct = {i: self._correct[i] + other._correct[i] for i in range(self.num_labels)}
+        new_target = [x+y for x, y in zip(self._target, other._target)]
+        new_prediction = [x + y for x, y in zip(self._prediction, other._prediction)]
+        new_correct = [x + y for x, y in zip(self._correct, other._correct)]
         return PRResults(new_target, new_prediction, new_correct)
 
     def add_item(self, target_label: int, predicted_label: int):
@@ -41,7 +41,7 @@ class PRResults:
 
     @property
     def num_results(self):
-        return sum(self._target.values())
+        return sum(self._target)
 
     @property
     def count(self):
@@ -49,7 +49,7 @@ class PRResults:
 
     @property
     def correct(self):
-        return sum(self._correct.values())
+        return sum(self._correct)
 
     @property
     def accuracy(self):
@@ -57,11 +57,15 @@ class PRResults:
 
     @property
     def precision(self):
-        raise NotImplementedError
+        return sum(num_targets/num_predictions
+                   for num_targets, num_predictions in zip(self._target, self._prediction)
+                   if num_predictions != 0) / self.num_labels
 
     @property
     def recall(self):
-        raise NotImplementedError
+        return sum(num_targets/num_correct
+                   for num_targets, num_correct in zip(self._target, self._correct)
+                   if num_correct != 0) / self.num_labels
 
     @property
     def f1(self):
@@ -83,6 +87,6 @@ def prf(predictions, targets, num_labels) -> PRResults:
         if target == CONV_PAD_LABEL:
             continue
         else:
-            results.add_item(target_label=target, predicted_label=prediction)
+            results.add_item(target_label=int(target), predicted_label=int(prediction))
 
     return results
