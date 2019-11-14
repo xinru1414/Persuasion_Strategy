@@ -320,9 +320,9 @@ class dataLoaderANN(Dataset):
 
                     if self.max_len < l:
                         self.max_len = l
-                    print(f'sent {temp}')
-                    print(f'label {raw_data[i][2 * j + 1]}')
-                    print(f'label number {self.lookup_label_id(raw_data[i][2 * j + 1])}')
+                    # print(f'sent {temp}')
+                    # print(f'label {raw_data[i][2 * j + 1]}')
+                    # print(f'label number {self.lookup_label_id(raw_data[i][2 * j + 1])}')
                     sentence_label.append(self.lookup_label_id(raw_data[i][2 * j + 1]))
 
             l = len(sentence_temp)

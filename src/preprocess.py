@@ -83,6 +83,9 @@ class Conversation:
         self.sents += [sent]
         self.labels += [label]
 
+    def add_sent_only(self, sent):
+        self.sents += [sent]
+
     def __len__(self):
         return len(self.sents)
 
@@ -95,12 +98,27 @@ class Conversation:
         return d
 
 
+def read_unlabled(file, convs):
+    un_conversations = {}
+    with open(file, newline='', mode='r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            message_id = row[AnnotationHeaders.CONVERSATION_ID.column_name]
+            if message_id not in convs:
+                if message_id not in un_conversations:
+                    un_conversations[message_id] = Conversation(message_id)
+                speaker = row[AnnotationHeaders.SPEAKER_FLAG.column_name]
+                if speaker == '1':
+                    sent = row[AnnotationHeaders.SENT.column_name]
+                    un_conversations[message_id].add_sent_only(sent)
+    return un_conversations
+
+
 @click.command()
 @click.option('-i', '--dataset-dir', default='../data/smc_dataset')
 @click.option('-o', '--output-dir', default='../data/preprocessed')
 def main(dataset_dir, output_dir):
     conversations = {}
-    un_conversations = {}
     annotation_filepaths = glob.glob(f'{dataset_dir}/Annotations - *.csv')
     for annotation_filepath in annotation_filepaths:
         with open(annotation_filepath, newline='', mode='r') as csvfile:
@@ -121,18 +139,14 @@ def main(dataset_dir, output_dir):
                         label = "not-a-strategy"
                     conversations[message_id].add_sent(sent, label)
 
-    un_annotation_file = dataset_dir + '/300_dialog.csv'
-    with open(un_annotation_file, newline='', mode='r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            message_id = row[AnnotationHeaders.CONVERSATION_ID.column_name]
-            if message_id not in conversations:
-                if message_id not in un_conversations:
-                    un_conversations[message_id] = Conversation(message_id)
-                speaker = row[AnnotationHeaders.SPEAKER_FLAG.column_name]
-                if speaker == '1':
-                    sent = row[AnnotationHeaders.SENT.column_name]
-                    un_conversations[message_id].add_sent(sent, label)
+    print(f'reading in 300 unlabeled')
+    un_annotation_file_1 = dataset_dir + '/300_dialog.csv'
+    un_conversations = read_unlabled(un_annotation_file_1, conversations)
+    # print(f'reading in rest unlabeled')
+    # un_annotation_file_2 = dataset_dir + '/full_dialog.csv'
+    # un_conversations_2 = read_unlabled(un_annotation_file_2, conversations)
+    # un_conversations = {**un_conversations_1, **un_conversations_2}
+    # print(f'total unlabeled conv {len(un_conversations)}')
 
     try:
         os.mkdir(output_dir)
@@ -163,9 +177,21 @@ def main(dataset_dir, output_dir):
         for row in reader:
             if row['B4'] == '1':
                 message_id_to_info[row['B2']] = row
+    # with open(f'{dataset_dir}/full_info.csv', 'r', encoding='utf-8-sig') as csvfile:
+    #     reader = csv.DictReader(csvfile)
+    #     for row in reader:
+    #         if row['B4'] == '1':
+    #             message_id_to_info[row['B2']] = row
+
     total = {**conversations, **un_conversations}
+    print(f'total number of convs {len(total)}')
     for message_id in total.keys():
         info = message_id_to_info[message_id]
+        # b6 = info['B6']
+        # if b6 == '0' or b6 == '0.0':
+        #     donation_labels[message_id] = 0
+        # else:
+        #     donation_labels[message_id] = 1
         b5, b6 = info['B5'], info['B6']
         if (b5 == '' and b6 == '0') or (b5 == '0' and b6 == '0'):
             donation_labels[message_id] = 0

@@ -5,7 +5,7 @@ dataset_with_annotation = "../data/preprocessed/annotation_dataset.csv"
 
 
 class ModelConfig:
-    def __init__(self, embedding_size=128, hidden_size=256, feature_size=10, output_size=2, learning_rate = 1e-5):
+    def __init__(self, embedding_size=128, hidden_size=256, feature_size=10, output_size=2, learning_rate=5e-5):
         self.embedding_size = embedding_size
         self.hidden_size = hidden_size
         self.feature_size = feature_size

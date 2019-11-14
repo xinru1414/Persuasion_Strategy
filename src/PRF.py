@@ -1,8 +1,6 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from Config import ConversationConfig, zeroed_class_dict
 CONV_LABEL_NUM = ConversationConfig.conv_label_num
 CONV_PAD_LABEL = ConversationConfig.conv_pad_label
@@ -20,12 +18,12 @@ def p_r_f1(dict_num):
     return count, correct, predict_dict, correct_dict, total_dict, p, r
 
 
-class MessageLoss(nn.Module):
+class PRF(nn.Module):
     def __init__(self, w1=5, w2=10):
-        super(MessageLoss, self).__init__()
+        super(PRF, self).__init__()
         self.w1 = w1
         self.w2 = w2
-        
+
     def forward(self, labeled_doc=None, target1=None, labeled_sent=None, target2=None, w1=None, unlabeled_doc=None, target3=None, mode='None'):
         if w1 is not None:
             self.w1 = w1
@@ -73,12 +71,12 @@ class MessageLoss(nn.Module):
 
             if type(unlabeled_doc_loss) != float:
                 unlabeled_doc_loss = unlabeled_doc_loss.cpu().detach().numpy()
-            
+
         labeled_sent_loss = 0
         predicted = []
         ground_truth = []
         count, correct, predict_dict, correct_dict, correct_total, p, r = p_r_f1(SENT_LABEL_NUM)
-        
+
         if target2 is not None:
             target2 = target2.view(target2.shape[0] * target2.shape[1])
             labeled_sent1 = F.log_softmax(labeled_sent, dim=1)
@@ -126,13 +124,11 @@ class MessageLoss(nn.Module):
                 dp += temp
                 dr += temp2
 
-        loss = self.w1 * (labeled_doc_loss + unlabeled_doc_loss) + self.w2 * labeled_sent_loss
-        return loss, labeled_sent_loss
-
-        #
-        # if mode == 'train':
-        #     loss = self.w1 * (labeled_doc_loss + unlabeled_doc_loss) + self.w2 * labeled_sent_loss
-        #     return loss, labeled_sent_loss
-        # else:
-        #     loss = labeled_doc_loss + self.w2 * labeled_sent_loss.cpu().detach().numpy()
-        #     return loss, labeled_sent_loss
+        if mode == 'train':
+            loss = self.w1 * (labeled_doc_loss + unlabeled_doc_loss) + self.w2 * labeled_sent_loss
+            return loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p/SENT_LABEL_NUM, r/SENT_LABEL_NUM, \
+                   dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp/CONV_LABEL_NUM, dr/CONV_LABEL_NUM, predicted, ground_truth
+        else:
+            loss = labeled_doc_loss + self.w2 * labeled_sent_loss.cpu().detach().numpy()
+            return loss, labeled_sent_loss, correct_dict, predict_dict, correct_total, correct, count, p/SENT_LABEL_NUM, r/SENT_LABEL_NUM,\
+                   dcorrect_dic, dpredict_dic, dcorrect_total, d_correct, d_count, dp/CONV_LABEL_NUM, dr/CONV_LABEL_NUM, predicted, ground_truth
