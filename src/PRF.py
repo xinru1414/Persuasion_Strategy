@@ -1,137 +1,88 @@
+from typing import NamedTuple
+
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from Config import ConversationConfig, zeroed_class_dict
+
 CONV_LABEL_NUM = ConversationConfig.conv_label_num
 CONV_PAD_LABEL = ConversationConfig.conv_pad_label
 SENT_LABEL_NUM = ConversationConfig.sent_label_num
 
 
-def p_r_f1(dict_num):
-    count = 0
-    correct = 0
-    predict_dict = zeroed_class_dict(dict_num)
-    correct_dict = zeroed_class_dict(dict_num)
-    total_dict = zeroed_class_dict(dict_num)
-    return count, correct, predict_dict, correct_dict, total_dict
+class PRResults:
+    def __init__(self, target, prediction, correct):
+        self._target = target
+        self._prediction = prediction
+        self._correct = correct
+
+    @classmethod
+    def with_num_of_labels(cls, num_labels):
+        return cls(zeroed_class_dict(num_labels), zeroed_class_dict(num_labels), zeroed_class_dict(num_labels))
+
+    def __add__(self, other):
+        assert isinstance(other, PRResults)
+        assert self.num_labels == other.num_labels, 'Number of labels must match between results if they are being added.'
+        new_target = {i: self._target[i] + other._target[i] for i in range(self.num_labels)}
+        new_prediction = {i: self._prediction[i] + other._prediction[i] for i in range(self.num_labels)}
+        new_correct = {i: self._correct[i] + other._correct[i] for i in range(self.num_labels)}
+        return PRResults(new_target, new_prediction, new_correct)
+
+    def add_item(self, target_label: int, predicted_label: int):
+        assert 0 <= target_label < self.num_labels, f'Invalid target_label! Must be in range [{0}, {self.num_labels}) was {target_label}.'
+        assert 0 <= predicted_label < self.num_labels, f'Invalid predicted_label! Must be in range [{0}, {self.num_labels}) was {predicted_label}.'
+        self._target[target_label] += 1
+        self._prediction[predicted_label] += 1
+        if target_label == predicted_label:
+            self._correct[target_label] += 1
+
+    @property
+    def num_labels(self):
+        return len(self._target)
+
+    @property
+    def num_results(self):
+        return sum(self._target.values())
+
+    @property
+    def count(self):
+        return self.num_results
+
+    @property
+    def correct(self):
+        return sum(self._correct.values())
+
+    @property
+    def accuracy(self):
+        return self.correct / self.count
+
+    @property
+    def precision(self):
+        raise NotImplementedError
+
+    @property
+    def recall(self):
+        raise NotImplementedError
+
+    @property
+    def f1(self):
+        return 2 * (self.recall * self.precision) / (self.recall + self.precision)
 
 
-def dicks_to_p_r(correct_dict, predict_dict, correct_total):
-    num_of_labels = len(correct_total)
-    p, r = 0, 0
-    for (u, v) in correct_dict.items():
-        if predict_dict[u] != 0:
-            p += v / predict_dict[u]
-        if correct_total[u] != 0:
-            r += v / correct_total[u]
-    return p / num_of_labels, r / num_of_labels
+def get_item(x):
+    return x.item()
 
 
-def prf_doc(labeled_doc=None, target1=None, labeled_sent=None, target2=None, unlabeled_doc=None, target3=None):
-    d_count, d_correct, dpredict_dic, dcorrect_dic, dcorrect_total = p_r_f1(CONV_LABEL_NUM)
+def prf(predictions, targets, num_labels) -> PRResults:
+    if len(targets.shape) > 1:
+        targets = targets.view(targets.shape[0] * targets.shape[1])
+    predictions = torch.argmax(F.softmax(predictions, dim=1), dim=1)
 
-    if target1 is not None:
-        labeled_doc2 = torch.argmax(F.softmax(labeled_doc, dim=1), dim=1)
+    results = PRResults.with_num_of_labels(num_labels)
 
-        for i in range(0, target1.shape[0]):
-            d_count += 1
-            dcorrect_total[target1[i].item()] += 1
-            dpredict_dic[labeled_doc2[i].item()] += 1
-            if labeled_doc2[i] == target1[i].long():
-                d_correct += 1
-                dcorrect_dic[target1[i].item()] += 1
+    for prediction, target in zip(map(get_item, predictions), map(get_item, targets)):
+        if target == CONV_PAD_LABEL:
+            continue
+        else:
+            results.add_item(target_label=target, predicted_label=prediction)
 
-    ud_count = 0
-    if target3 is not None:
-        unlabeled_doc2 = torch.argmax(F.softmax(unlabeled_doc, dim=1), dim=1)
-
-        for i in range(0, target3.shape[0]):
-            d_count += 1
-            ud_count += 1
-            dcorrect_total[target3[i].item()] += 1
-            dpredict_dic[unlabeled_doc2[i].item()] += 1
-            if unlabeled_doc2[i] == target3[i].long():
-                d_correct += 1
-                dcorrect_dic[target1[i].item()] += 1
-
-    predicted = []
-    ground_truth = []
-    count, correct, predict_dict, correct_dict, correct_total = p_r_f1(SENT_LABEL_NUM)
-
-    if target2 is not None:
-        target2 = target2.view(target2.shape[0] * target2.shape[1])
-        labeled_sent2 = torch.argmax(F.softmax(labeled_sent, dim=1), dim=1)
-
-        for i in range(0, target2.shape[0]):
-            if target2[i] == CONV_PAD_LABEL:
-                continue
-            else:
-                predicted.append(labeled_sent2[i].cpu().detach().numpy())
-                ground_truth.append(target2[i].cpu().detach().numpy())
-                count += 1
-                correct_total[target2[i].item()] += 1
-                predict_dict[labeled_sent2[i].item()] += 1
-                if labeled_sent2[i] == target2[i]:
-                    correct += 1
-                    correct_dict[target2[i].item()] += 1
-
-    assert(len(predicted) == len(ground_truth)), 'predicted and ground truth should be the same length'
-
-    dp, dr = dicks_to_p_r(dcorrect_dic, dpredict_dic, dcorrect_total)
-
-    return d_correct, d_count, dp, dr
-
-
-def prf_sent(labeled_doc=None, target1=None, labeled_sent=None, target2=None, unlabeled_doc=None, target3=None):
-    d_count, d_correct, dpredict_dic, dcorrect_dic, dcorrect_total = p_r_f1(CONV_LABEL_NUM)
-
-    if target1 is not None:
-        labeled_doc2 = torch.argmax(F.softmax(labeled_doc, dim=1), dim=1)
-
-        for i in range(0, target1.shape[0]):
-            d_count += 1
-            dcorrect_total[target1[i].item()] += 1
-            dpredict_dic[labeled_doc2[i].item()] += 1
-            if labeled_doc2[i] == target1[i].long():
-                d_correct += 1
-                dcorrect_dic[target1[i].item()] += 1
-
-    ud_count = 0
-    if target3 is not None:
-        unlabeled_doc2 = torch.argmax(F.softmax(unlabeled_doc, dim=1), dim=1)
-
-        for i in range(0, target3.shape[0]):
-            d_count += 1
-            ud_count += 1
-            dcorrect_total[target3[i].item()] += 1
-            dpredict_dic[unlabeled_doc2[i].item()] += 1
-            if unlabeled_doc2[i] == target3[i].long():
-                d_correct += 1
-                dcorrect_dic[target1[i].item()] += 1
-
-    predicted = []
-    ground_truth = []
-    count, correct, predict_dict, correct_dict, correct_total = p_r_f1(SENT_LABEL_NUM)
-
-    if target2 is not None:
-        target2 = target2.view(target2.shape[0] * target2.shape[1])
-        labeled_sent2 = torch.argmax(F.softmax(labeled_sent, dim=1), dim=1)
-
-        for i in range(0, target2.shape[0]):
-            if target2[i] == CONV_PAD_LABEL:
-                continue
-            else:
-                predicted.append(labeled_sent2[i].cpu().detach().numpy())
-                ground_truth.append(target2[i].cpu().detach().numpy())
-                count += 1
-                correct_total[target2[i].item()] += 1
-                predict_dict[labeled_sent2[i].item()] += 1
-                if labeled_sent2[i] == target2[i]:
-                    correct += 1
-                    correct_dict[target2[i].item()] += 1
-
-    assert(len(predicted) == len(ground_truth)), 'predicted and ground truth should be the same length'
-
-    p, r = dicks_to_p_r(correct_dict, predict_dict, correct_total)
-
-    return correct, count, p, r
+    return results

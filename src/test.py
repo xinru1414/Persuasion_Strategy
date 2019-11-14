@@ -1,13 +1,13 @@
 import torch
 import torch.utils.data as Data
 from torch.autograd import Variable
-from Config import ModelConfig, dataset_text, dataset_with_annotation
+from Config import ModelConfig, dataset_text, dataset_with_annotation, ConversationConfig
 from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
 from MessageLoss import MessageLoss
 from nltk import agreement
 import numpy as np
 
-from PRF import prf, prf_doc, prf_sent
+from PRF import prf, PRResults
 
 config = ModelConfig()
 
@@ -31,10 +31,13 @@ messageLoss = MessageLoss(w2=10)
 messageLoss.cuda()
 
 
-
 def testModel():
     global request
     request.eval()
+
+    sent_results = PRResults.with_num_of_labels(ConversationConfig.sent_label_num)
+    doc_results = PRResults.with_num_of_labels(ConversationConfig.conv_label_num)
+
     for step, (x, y, l, num, length) in enumerate(loaderTest):
         message_input = Variable(x.type(torch.LongTensor)).cuda()
         message_target = Variable(y.type(torch.FloatTensor)).cuda()
@@ -44,33 +47,21 @@ def testModel():
         loss, labeled_sent_loss \
             = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out,
                           target2=sentence_label, mode='test')
-        correct, count, p, r = prf_sent(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
-        d_correct, d_count, dp, dr = prf_doc(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
+        sent_results += prf(predictions=sentence_out, targets=sentence_label, num_labels=ConversationConfig.sent_label_num)
+        doc_results += prf(predictions=message_out, targets=message_target, num_labels=ConversationConfig.conv_label_num)
 
-    if p + r != 0:
-        f1 = (2 * p * r) / (p + r)
-    else:
-        f1 = 0
-
-    if dp + dr != 0:
-        df1 = (2 * dp * dr) / (dp + dr)
-    else:
-        df1 = 0
-
-    print(f'x, y {x, y}')
-    x = np.stack(x, axis=0).tolist()
-    y = np.stack(y, axis=0).tolist()
-    print(f'new x y {x, y}')
-    taskdata = [[0, str(i), str(x[i])] for i in range(0, len(x))] + [[1, str(i), str(y[i])] for i in range(0, len(y))]
-    ratingtask = agreement.AnnotationTask(data=taskdata)
-    alpha = ratingtask.kappa()
+        print(f'x, y {x, y}')
+        x = np.stack(x, axis=0).tolist()
+        y = np.stack(y, axis=0).tolist()
+        print(f'new x y {x, y}')
+        taskdata = [[0, str(i), str(x[i])] for i in range(0, len(x))] + [[1, str(i), str(y[i])] for i in range(0, len(y))]
+        ratingtask = agreement.AnnotationTask(data=taskdata)
+        alpha = ratingtask.kappa()
 
     print("...")
     print(f"Test: total loss: {loss}, labeled sent loss: {labeled_sent_loss}")
-    print(
-        f"    : sent -- correct: {correct}, count : {count}, acc: {correct / count}, p: {p}, r: {r}, f1: {f1}, kappa: {alpha}")
-    print(
-        f"    : conv -- correct: {d_correct}, count : {d_count}, dacc: {d_correct / d_count}, p: {dp}, r: {dr}, f1: {df1}")
+    print(f"   : sent -- count : {sent_results.count}, acc: {sent_results.accuracy}") #, p: {p}, r: {r}, f1: {f1}")
+    print(f"   : conv -- count : {doc_results.count}, acc: {doc_results.accuracy}") #, p: {dp}, r: {dr}, f1: {df1}")
     print("...")
 
 

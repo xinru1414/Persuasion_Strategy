@@ -4,11 +4,11 @@ import torch.utils.data as Data
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import *
 
-from Config import ModelConfig, dataset_text, dataset_with_annotation
+from Config import ModelConfig, dataset_text, dataset_with_annotation, ConversationConfig
 from DataLoader import Vocab, dataLoaderANN, dataLoaderUnann
 from AttnModel import Request
 from MessageLoss import MessageLoss
-from PRF import prf_sent, prf_doc
+from PRF import prf, PRResults
 
 config = ModelConfig()
 
@@ -59,10 +59,9 @@ def p_r_to_f1(p, r):
 def evaluation():
     global request
     request.eval()
-    
-    correct_ = 0
-    count_ = 0
-    loss_ = 0
+
+    sent_results = PRResults.with_num_of_labels(ConversationConfig.sent_label_num)
+    doc_results = PRResults.with_num_of_labels(ConversationConfig.conv_label_num)
     
     for step, (x, y, l, num, length) in enumerate(loaderDev):
         message_input = Variable(x.type(torch.LongTensor)).cuda()
@@ -73,22 +72,16 @@ def evaluation():
 
         loss, label_sent_loss \
             = messageLoss(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label, mode='dev')
-        correct, count, p, r = prf_sent(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
-        d_correct, d_count, dp, dr = prf_doc(labeled_doc=message_out, target1=message_target, labeled_sent=sentence_out, target2=sentence_label)
-        correct_ += correct
-        count_ += count
-        loss_ += loss
+        sent_results += prf(predictions=sentence_out, targets=sentence_label, num_labels=ConversationConfig.sent_label_num)
+        doc_results += prf(predictions=message_out, targets=message_target, num_labels=ConversationConfig.conv_label_num)
 
-        f1 = p_r_to_f1(p, r)
-        df1 = p_r_to_f1(dp, dr)
+    print("...")
+    print(f"Dev: total_loss: {loss}, labeled_sent_loss: {label_sent_loss}")
+    print(f"   : sent -- count : {sent_results.count}, acc: {sent_results.accuracy}") #, p: {p}, r: {r}, f1: {f1}")
+    print(f"   : conv -- count : {doc_results.count}, acc: {doc_results.accuracy}") #, p: {dp}, r: {dr}, f1: {df1}")
+    print("...")
 
-        print("...")
-        print(f"Dev: total_loss: {loss}, labeled_sent_loss: {label_sent_loss}")
-        print(f"   : sent -- correct: {correct}, count : {count}, acc: {correct/count}, p: {p}, r: {r}, f1: {f1}")
-        print(f"   : conv -- correct: {d_correct}, dcount : {d_count}, acc: {d_correct/d_count}, p: {dp}, r: {dr}, f1: {df1}")
-        print("...")
-
-    return correct_/count_, loss_
+    return sent_results.accuracy, loss
 
 
 def getAnnTrainBatches():
@@ -192,7 +185,6 @@ def trainStep(without_unann=False):
         else:
             loss, labeled_sent_loss \
                 = messageLoss(labeled_doc=ann_message_out, target1=ann_message_target, labeled_sent=ann_sentence_out, target2=ann_sentence_label, w1=10, unlabeled_doc=unann_message_out, target3=unann_message_target, mode='train')
-            
 
         optimizer.zero_grad()
         loss.backward()
