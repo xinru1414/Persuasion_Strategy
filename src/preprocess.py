@@ -54,7 +54,7 @@ class AnnotationHeaders(Enum):
     SPEAKER_FLAG = 'B4'
     SENT = 'Unit'
     PERSUADER = 'er_label_1'
-    OUR_PERSUADEE = 'Our Label'
+    OUR_PERSUADEE = 'Poss_Labels'
 
     @property
     def column_name(self):
@@ -108,7 +108,7 @@ def read_unlabled(file, convs):
                 if message_id not in un_conversations:
                     un_conversations[message_id] = Conversation(message_id)
                 speaker = row[AnnotationHeaders.SPEAKER_FLAG.column_name]
-                if speaker == '1':
+                if speaker == '0':
                     sent = row[AnnotationHeaders.SENT.column_name]
                     un_conversations[message_id].add_sent_only(sent)
     return un_conversations
@@ -116,37 +116,37 @@ def read_unlabled(file, convs):
 
 @click.command()
 @click.option('-i', '--dataset-dir', default='../data/smc_dataset')
-@click.option('-o', '--output-dir', default='../data/preprocessed')
+@click.option('-o', '--output-dir', default='../data/preprocessed_politeness_ER_4')
 def main(dataset_dir, output_dir):
     conversations = {}
-    annotation_filepaths = glob.glob(f'{dataset_dir}/Annotations - *.csv')
+    annotation_filepaths = glob.glob(f'{dataset_dir}/ER_4.csv')
     for annotation_filepath in annotation_filepaths:
         with open(annotation_filepath, newline='', mode='r') as csvfile:
             reader = csv.DictReader(csvfile)
+            turn = []
             for row in reader:
                 message_id = row[AnnotationHeaders.CONVERSATION_ID.column_name]
                 if message_id not in conversations:
                     conversations[message_id] = Conversation(message_id)
 
                 speaker = row[AnnotationHeaders.SPEAKER_FLAG.column_name]
-                if speaker == '1':
+
+                if speaker == '0':
                     sent = row[AnnotationHeaders.SENT.column_name]
                     label_header = AnnotationHeaders.OUR_PERSUADEE
                     label = row[label_header.column_name]
-                    print(f'label is {label}')
                     if label == '':
-                        print(f'found not labeled data{sent}')
-                        label = "not-a-strategy"
+                        label = "other"
                     conversations[message_id].add_sent(sent, label)
-
+    print(f'labeled conv number {len(conversations)}')
     print(f'reading in 300 unlabeled')
     un_annotation_file_1 = dataset_dir + '/300_dialog.csv'
-    un_conversations = read_unlabled(un_annotation_file_1, conversations)
-    # print(f'reading in rest unlabeled')
-    # un_annotation_file_2 = dataset_dir + '/full_dialog.csv'
-    # un_conversations_2 = read_unlabled(un_annotation_file_2, conversations)
-    # un_conversations = {**un_conversations_1, **un_conversations_2}
-    # print(f'total unlabeled conv {len(un_conversations)}')
+    un_conversations_1 = read_unlabled(un_annotation_file_1, conversations)
+    print(f'reading in rest unlabeled')
+    un_annotation_file_2 = dataset_dir + '/full_dialog.csv'
+    un_conversations_2 = read_unlabled(un_annotation_file_2, conversations)
+    un_conversations = {**un_conversations_1, **un_conversations_2}
+    print(f'total unlabeled conv {len(un_conversations)}')
 
     try:
         os.mkdir(output_dir)
@@ -175,32 +175,32 @@ def main(dataset_dir, output_dir):
     with open(f'{dataset_dir}/300_info.csv', 'r', encoding='utf-8-sig') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            if row['B4'] == '1':
+            if row['B4'] == '0':
                 message_id_to_info[row['B2']] = row
-    # with open(f'{dataset_dir}/full_info.csv', 'r', encoding='utf-8-sig') as csvfile:
-    #     reader = csv.DictReader(csvfile)
-    #     for row in reader:
-    #         if row['B4'] == '1':
-    #             message_id_to_info[row['B2']] = row
+    with open(f'{dataset_dir}/full_info.csv', 'r', encoding='utf-8-sig') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            if row['B4'] == '0':
+                message_id_to_info[row['B2']] = row
 
     total = {**conversations, **un_conversations}
     print(f'total number of convs {len(total)}')
     for message_id in total.keys():
         info = message_id_to_info[message_id]
-        # b6 = info['B6']
-        # if b6 == '0' or b6 == '0.0':
-        #     donation_labels[message_id] = 0
-        # else:
-        #     donation_labels[message_id] = 1
-        b5, b6 = info['B5'], info['B6']
-        if (b5 == '' and b6 == '0') or (b5 == '0' and b6 == '0'):
-            donation_labels[message_id] = 0
-        elif (b5 and float(b5) > 0 and float(b6) > 0) or (b5 == '' and float(b6) > 0) or (b5 == '0' and float(b6) > 0):
-            donation_labels[message_id] = 1
-        elif b5 and float(b5) > 0 and b6 == '0':
+        b6 = info['B6']
+        if b6 == '0' or b6 == '0.0':
             donation_labels[message_id] = 0
         else:
-            print(f'{message_id} does not belong to any classes {b5, b6}')
+            donation_labels[message_id] = 1
+        # b5, b6 = info['B5'], info['B6']
+        # if (b5 == '' and b6 == '0') or (b5 == '0' and b6 == '0'):
+        #     donation_labels[message_id] = 0
+        # elif (b5 and float(b5) > 0 and float(b6) > 0) or (b5 == '' and float(b6) > 0) or (b5 == '0' and float(b6) > 0):
+        #     donation_labels[message_id] = 1
+        # elif b5 and float(b5) > 0 and b6 == '0':
+        #     donation_labels[message_id] = 0
+        # else:
+        #     print(f'{message_id} does not belong to any classes {b5, b6}')
 
     with open(f'{output_dir}/persuasion_donation_label.pkl', 'wb') as picklefile:
         pickle.dump(donation_labels, picklefile)

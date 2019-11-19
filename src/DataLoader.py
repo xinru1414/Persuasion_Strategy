@@ -21,7 +21,7 @@ from nltk.tokenize import regexp_tokenize, sent_tokenize
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from Config import ConversationConfig
+from Config import ConversationConfig, FiveFold
 
 SENT_LABEL_SET = ConversationConfig.sent_label_set
 CONV_PAD_LABEL = ConversationConfig.conv_pad_label
@@ -284,7 +284,7 @@ class dataLoaderANN(Dataset):
         return score
 
     def load_data(self, dataset_with_annotation):
-        with open('../data/preprocessed/persuasion_donation_label.pkl', 'rb') as f:
+        with open('../data/preprocessed_politeness_EE_0/persuasion_donation_label.pkl', 'rb') as f:
             self.message_id_and_score = pickle.load(f)
 
         raw_data = pd.read_csv(dataset_with_annotation, encoding='utf-8', sep=',', engine='python')
@@ -416,7 +416,7 @@ class dataLoaderUnann(Dataset):
         return score
 
     def load_data(self, dataset_text):
-        with open('../data/preprocessed/persuasion_donation_label.pkl', 'rb') as f:
+        with open('../data/preprocessed_politeness_0/persuasion_donation_label.pkl', 'rb') as f:
             self.message_id_and_score = pickle.load(f)
 
         raw_data = pd.read_csv(dataset_text, encoding='utf-8', sep=',', engine='python')

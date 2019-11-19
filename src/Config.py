@@ -1,7 +1,6 @@
 sent_label_set_1 = ['direct-rejection', 'self-pity', 'deflect-responsibility', 'attack-credibility', 'organization-inquiry', 'personal-choice', 'delay-tactic', 'hesitance', 'nitpicking', 'not-a-strategy']
-sent_label_set_2 = ['ERPos+', 'ERPos-', 'ERNeg+', 'ERNeg-','EEPos+', 'EEPos-', 'EENeg+', 'EENeg-']
-dataset_text = "../data/preprocessed/persuasion_dataset_text.csv"
-dataset_with_annotation = "../data/preprocessed/annotation_dataset.csv"
+sent_label_set_EE = ['ERPos+', 'EEPos+', 'EENeg+', 'ERPos-', 'ERNeg+', 'ERNeg-', 'other']
+sent_label_set_ER = ['ERPos+', 'EEPos+', 'EENeg+', 'EENeg-', 'EEPos-', 'other']
 
 
 class ModelConfig:
@@ -14,11 +13,18 @@ class ModelConfig:
 
 
 class ConversationConfig:
-    sent_num = 45
+    sent_num = 45 # 30 EE, 45 Resisting
     conv_label_num = 2
     sent_label_set = sent_label_set_1
     sent_label_num = len(sent_label_set)
     conv_pad_label = len(sent_label_set_1) + 1
+
+
+class FiveFold:
+    def __init__(self, i):
+        self.dataset_text = f"../data/preprocessed_full_{i}/persuasion_dataset_text.csv"
+        self.dataset_with_annotation = f"../data/preprocessed_full_{i}/annotation_dataset.csv"
+        self.save_path = f'../model/full_{i}/model_attn_1.pkl'
 
 
 def zeroed_class_dict(elements: int):

@@ -17,7 +17,7 @@ class PRResults:
 
     @classmethod
     def with_num_of_labels(cls, num_labels):
-        return cls(*(list(range(num_labels)) for _ in range(3)))
+        return cls(*([0 for _ in range(num_labels)] for _ in range(3)))
 
     def __add__(self, other):
         assert isinstance(other, PRResults)
@@ -57,15 +57,16 @@ class PRResults:
 
     @property
     def precision(self):
-        return sum(num_targets/num_predictions
-                   for num_targets, num_predictions in zip(self._target, self._prediction)
+        print(f"TARGET \n{self._target}\nPREDICTION \n{self._prediction} \nCORRECT\n{self._correct}")
+        return sum(num_correct/num_predictions
+                   for num_correct, num_predictions in zip(self._correct, self._prediction)
                    if num_predictions != 0) / self.num_labels
 
     @property
     def recall(self):
-        return sum(num_targets/num_correct
+        return sum(num_correct/num_targets
                    for num_targets, num_correct in zip(self._target, self._correct)
-                   if num_correct != 0) / self.num_labels
+                   if num_targets != 0) / self.num_labels
 
     @property
     def f1(self):
@@ -80,13 +81,20 @@ def prf(predictions, targets, num_labels) -> PRResults:
     if len(targets.shape) > 1:
         targets = targets.view(targets.shape[0] * targets.shape[1])
     predictions = torch.argmax(F.softmax(predictions, dim=1), dim=1)
+    print(f'num of instances {len(predictions)}')
+    print(f'actual predictions {predictions}')
+    print(f'actual targets {targets}')
 
     results = PRResults.with_num_of_labels(num_labels)
 
     for prediction, target in zip(map(get_item, predictions), map(get_item, targets)):
+        # print(f'\tprocessing: {prediction} - {target}')
         if target == CONV_PAD_LABEL:
             continue
         else:
             results.add_item(target_label=int(target), predicted_label=int(prediction))
+            # print(f'\t\tResult Correct: {results._target}')
+
+    print(f'Length: {results.num_results}')
 
     return results
